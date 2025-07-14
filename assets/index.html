@@ -1,0 +1,58 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Real-time Chat App</title>
+    <link rel="stylesheet" href="/assets/styles.css">
+    <script src="/assets/script.js" defer></script>
+</head>
+
+<body>
+    <button class="theme-toggle" onclick="toggleTheme()" title="Toggle Dark Mode">🌙</button>
+    <div class="chat-container">
+        <div class="sidebar">
+            <div class="channels-section">
+                <h3>Channels</h3>
+                <ul id="channelsList" class="channels-list">
+                </ul>
+                <div class="channel-input">
+                    <input type="text" id="newChannelInput" placeholder="Channel name">
+                    <select id="channelTypeSelect">
+                        <option value="ephemeral">Ephemeral</option>
+                        <option value="persistent">Persistent</option>
+                    </select>
+                    <button onclick="createChannel()">+</button>
+                </div>
+            </div>
+
+            <div class="input-container" style="margin-bottom: 20px;">
+                <input type="text" id="username" placeholder="Enter your username">
+            </div>
+        </div>
+
+        <div class="main-chat">
+            <h1>Real-time Chat App</h1>
+
+            <div id="status" class="status disconnected">
+                <span class="status-dot"></span>
+                <span>Disconnected</span>
+            </div>
+
+            <div class="current-channel" id="currentChannel">
+                Current Channel: #general
+            </div>
+
+            <div id="messages" class="messages"></div>
+
+            <div class="input-container">
+                <input type="text" id="messageInput" placeholder="Type your message..." disabled>
+                <button id="sendButton" onclick="sendMessage()" disabled>Send</button>
+            </div>
+        </div>
+    </div>
+
+</body>
+
+</html>

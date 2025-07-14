@@ -1,0 +1,26 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(go mod init:*)",
+      "Bash(go get:*)",
+      "Bash(go:*)",
+      "Bash(set CGO_ENABLED=1)",
+      "Bash(timeout:*)",
+      "Bash(export:*)",
+      "Bash(export CGO_ENABLED=1)",
+      "Bash(gcc:*)",
+      "Bash(mv:*)",
+      "Bash(setenv.bat)",
+      "Bash(call setenv.bat)",
+      "Bash(cmd /c:*)",
+      "Bash(mkdir:*)",
+      "Bash(true)",
+      "Bash(rm:*)",
+      "Bash(ls:*)",
+      "Bash(cp:*)",
+      "Bash(move:*)",
+      "Bash(del test_join_leave.go)"
+    ],
+    "deny": []
+  }
+}
