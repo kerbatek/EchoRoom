@@ -19,7 +19,7 @@ coverage.out
 *.swo
 *~
 docs/CLAUDE.md
-.claude
+.claude/
 
 # OS generated files
 .DS_Store
