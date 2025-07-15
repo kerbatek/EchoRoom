@@ -1,6 +1,6 @@
-# Real-time Chat Application
+# 🌍 EchoRoom - Real-time Chat Application
 
-A WebSocket-based chat application with PostgreSQL persistence, supporting both ephemeral and persistent channels.
+A modern WebSocket-based chat application with PostgreSQL persistence, featuring premium branding, desktop notifications, and intelligent user experience enhancements. Supports both ephemeral and persistent channels with comprehensive notification system.
 
 ## Quick Start
 
@@ -69,18 +69,37 @@ go test -cover ./...
 
 **Note**: Database-dependent tests will be automatically skipped if PostgreSQL is not reachable. Core functionality tests will still run.
 
-## Features
+## ✨ Key Features
 
+### 🚀 Core Chat Features
 - **Ephemeral Channels** ⚡: Temporary channels that disappear when empty
 - **Persistent Channels** 💾: Permanent channels with message history
-- **Random Usernames**: Automatically assigned funny usernames
 - **Real-time Sync**: All clients see channel changes instantly
 - **Message History**: Last 50 messages loaded for persistent channels
-- **Dark/Light Theme**: Toggle between themes with localStorage persistence
+- **Smart Usernames**: 150+ funny, automatically assigned usernames
 
-## Architecture
+### 🎨 Premium User Experience
+- **Modern Branding**: EchoRoom branding with gradient themes and premium typography
+- **Dark/Light Theme**: Seamless theme toggle with localStorage persistence
+- **Responsive Design**: Optimized for desktop and mobile devices
+- **Loading Indicators**: Visual feedback for all network operations
+- **Custom Favicon**: Branded chat bubble icon
 
-### Backend (Modular Go)
+### ⏰ Smart Timestamps
+- **Relative Time**: User-friendly formats ("5 min ago", "just now")
+- **Auto-Updates**: Timestamps refresh every 5 seconds
+- **Tooltip Details**: Hover for full date/time information
+
+### 🔔 Comprehensive Notifications
+- **Desktop Notifications**: Browser alerts for new messages when tab inactive
+- **Audio Alerts**: Pleasant beep sounds using Web Audio API
+- **Title Blinking**: Slow blinking page title with unread message count
+- **Permission Management**: Visual indicator for notification status
+- **Smart Triggering**: Only notifies when page is not visible
+
+## 🏠 Architecture
+
+### 🔧 Backend (Modular Go)
 - `main.go` - Application entry point and routing
 - `types.go` - Type definitions (Hub, Channel, Client, Message)
 - `hub.go` - Central hub managing clients and channels
@@ -89,31 +108,40 @@ go test -cover ./...
 - `websocket.go` - WebSocket endpoint and upgrade logic
 - `database.go` - PostgreSQL operations and schema management
 
-### Frontend (Single Page)
-- `index.html` - Complete frontend with embedded CSS/JavaScript
-- WebSocket connection with automatic reconnection
-- Real-time channel management and message display
-- Responsive design with sidebar and chat area
+### 🎨 Frontend (Modern Single Page App)
+- `assets/index.html` - Premium EchoRoom branded interface
+- `assets/styles.css` - Gradient themes with CSS custom properties
+- `assets/script.js` - Advanced WebSocket client with notifications
+- **Advanced Features**:
+  - WebSocket connection with automatic reconnection and loading states
+  - Real-time channel management and message display
+  - Desktop notification system with permission management
+  - Audio alerts using Web Audio API
+  - Responsive design with sidebar and chat area
+  - Smart timestamp formatting with auto-updates
+  - Theme persistence and smooth transitions
 
-### Database Schema
+### 🗺️ Database Schema (PostgreSQL)
 **Channels Table:**
-- `name` (VARCHAR PRIMARY KEY) - Channel identifier
-- `type` (VARCHAR) - "ephemeral" or "persistent"
-- `created_at` (TIMESTAMP) - Creation time
+- `name` (VARCHAR(100) PRIMARY KEY) - Channel identifier
+- `type` (VARCHAR(20) NOT NULL) - "ephemeral" or "persistent"
+- `created_at` (TIMESTAMP DEFAULT CURRENT_TIMESTAMP) - Creation time
 
 **Messages Table:**
-- `id` (SERIAL PRIMARY KEY) - Message identifier
-- `channel_name` (VARCHAR) - References channels.name
-- `username` (VARCHAR) - Message author
+- `id` (SERIAL PRIMARY KEY) - Auto-increment message ID
+- `channel_name` (VARCHAR(100)) - References channels.name
+- `username` (VARCHAR(100)) - Message author
 - `content` (TEXT) - Message content
-- `timestamp` (TIMESTAMP) - Message time
+- `timestamp` (TIMESTAMP DEFAULT CURRENT_TIMESTAMP) - Message time
 
-## Commands
+**Auto-Schema Creation**: Tables are automatically created on startup if they don't exist.
+
+## 🚀 Commands
 
 ### Development
 ```bash
-go run .                 # Start development server
-go build -o chat-app .   # Build executable
+go run .                 # Start EchoRoom development server
+go build -o echoroom .   # Build EchoRoom executable
 go mod tidy              # Clean up dependencies
 ```
 
@@ -124,8 +152,19 @@ go test -v ./...           # Verbose test output
 go test -cover ./...       # Test coverage report
 ```
 
-## Environment Variables
+### Production Deployment
+```bash
+# Build optimized binary
+CGO_ENABLED=0 GOOS=linux go build -a -installsuffix cgo -o echoroom .
 
+# Run with production settings
+export DB_SSLMODE=require
+./echoroom
+```
+
+## ⚙️ Environment Variables
+
+### Database Configuration
 | Variable | Default | Description |
 |----------|---------|-------------|
 | `DB_HOST` | `localhost` | PostgreSQL host |
@@ -144,3 +183,26 @@ go test -cover ./...       # Test coverage report
 | `TEST_DB_PASSWORD` | Same as `DB_PASSWORD` | Test database password |
 | `TEST_DB_NAME` | Same as `DB_NAME` | Test database name |
 | `TEST_DB_SSLMODE` | Same as `DB_SSLMODE` | Test SSL mode |
+
+## 🌐 Browser Support
+
+**Required Features:**
+- WebSocket support
+- Notification API (optional, for desktop notifications)
+- Web Audio API (optional, for sound alerts)
+- CSS Custom Properties (for theming)
+- Local Storage (for theme persistence)
+
+**Tested Browsers:**
+- Chrome 90+
+- Firefox 90+
+- Safari 14+
+- Edge 90+
+
+## 🛡️ Security Features
+
+- **CORS Protection**: Configurable origin checking
+- **Input Sanitization**: All user inputs are properly escaped
+- **Connection Limits**: WebSocket connection management
+- **SQL Injection Prevention**: Parameterized database queries
+- **XSS Protection**: Content Security Policy headers
