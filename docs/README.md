@@ -34,7 +34,7 @@ export DB_NAME=chat_app
 
 ### 3. Run the Application
 ```bash
-go run *.go
+go run .
 ```
 
 Open your browser to `http://localhost:8080`
@@ -112,9 +112,9 @@ go test -cover ./...
 
 ### Development
 ```bash
-go run *.go                 # Start development server
-go build -o chat-app *.go   # Build executable
-go mod tidy                 # Clean up dependencies
+go run .                 # Start development server
+go build -o chat-app .   # Build executable
+go mod tidy              # Clean up dependencies
 ```
 
 ### Testing

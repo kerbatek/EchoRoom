@@ -4,7 +4,10 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Real-time Chat App</title>
+    <title>EchoRoom - Real-time Conversations</title>
+    <!-- Favicon using data URI for a chat bubble icon -->
+    <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='%234a90e2'%3E%3Cpath d='M12 2C6.48 2 2 6.48 2 12c0 1.54.36 3.04 1.05 4.4L1 22l5.6-2.05C8.96 21.64 10.46 22 12 22c5.52 0 10-4.48 10-10S17.52 2 12 2zm-1 15h-2v-2h2v2zm0-4h-2V9h2v4z'/%3E%3C/svg%3E">
+    <link rel="alternate icon" href="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAACAAAAAgCAYAAABzenr0AAAAAXNSR0IArs4c6QAAAARnQU1BAACxjwv8YQUAAAAJcEhZcwAADsQAAA7EAZUrDhsAAAKpSURBVFhH7ZdNaBNBFMefJBvbtKlWW6u2VqsVD4IHwYN48SJ48OJBvHjx4kW8ePHgxYsXL168ePHixYsXL168ePHixYsXL168ePHixYsXL168ePHixYsXL168ePHixYsXL168ePHixYsXL168ePHixYsXL168ePHixYsXL168ePHixYsXL168ePHixYsXL168ePHixYsXL168ePHixYsXL168ePHixYsXL168ePHixYsXL168ePHixYsXL168ePHixYsXL168ePHixYsXL168ePHixYsXL168ePHixYsXL168ePHixYsXL168ePHixYsXL168ePHixYsXL168ePHixYsXL168ePHixYsXL168ePHixYsXL168ePHixYsXL168ePHixYsXL168ePHixYsXL168ePHixYsXL168ePHixYsXL168ePHixYsXL168ePHixYsXL168ePHixYsXL168ePHixYsXL168ePHixYsXL168ePHixYsXL168ePHixYsXL168ePHixYsXL168ePHixYsXL168ePHixYsXL168ePHixYsXL168ePHixYsXL168ePHixYsXL168ePHixYsXL168ePHixYsXL168ePHixYsXL168ePHixYsXL168ePHixYsXL168ePHixYsXL168ePHixYsXL168ePHixYsXL168ePHixYsXL168ePHixYsXL168ePHixYsXL168ePHixYsXL168ePHixYsXL168ePHixYsXL168ePHixYsXL168ePHixYsXL168ePHixYsXL168ePHixYsXL168ePHixYsXL168ePHixYsXL168ePHixYsXL168ePHixYsXL168ePHixYsXL168ePHixYsXL168ePHixYsXL168ePHixYsXL168ePHixYsXL168ePHixYsXL168ePHixYsXL168ePHixYsXL168ePHixYsXL168ePHixYsXL168ePHixYsXL168ePHixYsXL168ePHgRQAAP//2Q==">
     <link rel="stylesheet" href="/assets/styles.css">
     <script src="/assets/script.js" defer></script>
 </head>
@@ -23,7 +26,7 @@
                         <option value="ephemeral">Ephemeral</option>
                         <option value="persistent">Persistent</option>
                     </select>
-                    <button onclick="createChannel()">+</button>
+                    <button onclick="createChannelWithSpinner()">+</button>
                 </div>
             </div>
 
@@ -33,11 +36,24 @@
         </div>
 
         <div class="main-chat">
-            <h1>Real-time Chat App</h1>
+            <div class="app-header">
+                <h1>🌍 EchoRoom</h1>
+                <div class="app-tagline">Real-time conversations made simple</div>
+                <div id="notificationStatus" class="notification-status" style="display: none;">
+                    <span id="notificationIcon">🔔</span>
+                    <span id="notificationText">Notifications enabled</span>
+                </div>
+            </div>
 
             <div id="status" class="status disconnected">
-                <span class="status-dot"></span>
-                <span>Disconnected</span>
+                <div class="status-content">
+                    <span class="status-dot"></span>
+                    <span class="status-text">Disconnected</span>
+                </div>
+                <div id="loadingSpinner" class="loading-spinner" style="display: none;">
+                    <div class="spinner"></div>
+                    <span>Connecting...</span>
+                </div>
             </div>
 
             <div class="current-channel" id="currentChannel">

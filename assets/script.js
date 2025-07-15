@@ -2,6 +2,10 @@ let ws = null;
         let username = 'User';
         let currentChannel = 'general';
         let channels = new Set(['general']);
+        let isPageVisible = true;
+        let titleBlinkInterval = null;
+        let originalTitle = 'EchoRoom - Real-time Conversations';
+        let unreadCount = 0;
 
         // Funny, informal sample usernames
         const sampleUsernames = [
@@ -73,6 +77,195 @@ let ws = null;
             return sampleUsernames[randomIndex];
         }
 
+        // Time formatting utility functions
+        function getRelativeTime(timestamp) {
+            try {
+                const now = new Date();
+                const messageTime = new Date(timestamp);
+                
+                // Check if the date is valid
+                if (isNaN(messageTime.getTime())) {
+                    console.log('Invalid timestamp:', timestamp);
+                    return 'just now';
+                }
+                
+                const diffInSeconds = Math.floor((now - messageTime) / 1000);
+
+                if (diffInSeconds < 60) {
+                    return diffInSeconds <= 10 ? 'just now' : `${diffInSeconds}s ago`;
+                }
+
+                const diffInMinutes = Math.floor(diffInSeconds / 60);
+                if (diffInMinutes < 60) {
+                    return diffInMinutes === 1 ? '1 min ago' : `${diffInMinutes} min ago`;
+                }
+
+                const diffInHours = Math.floor(diffInMinutes / 60);
+                if (diffInHours < 24) {
+                    return diffInHours === 1 ? '1 hour ago' : `${diffInHours} hours ago`;
+                }
+
+                const diffInDays = Math.floor(diffInHours / 24);
+                if (diffInDays < 30) {
+                    return diffInDays === 1 ? '1 day ago' : `${diffInDays} days ago`;
+                }
+
+                // For older messages, show date
+                return messageTime.toLocaleDateString([], { 
+                    month: 'short', 
+                    day: 'numeric',
+                    year: messageTime.getFullYear() !== now.getFullYear() ? 'numeric' : undefined
+                });
+            } catch (e) {
+                console.error('Error in getRelativeTime:', e, 'for timestamp:', timestamp);
+                return 'just now';
+            }
+        }
+
+        // Notification and title management functions
+        function updateNotificationStatus() {
+            const statusEl = document.getElementById('notificationStatus');
+            const iconEl = document.getElementById('notificationIcon');
+            const textEl = document.getElementById('notificationText');
+            
+            if ('Notification' in window) {
+                const permission = Notification.permission;
+                statusEl.style.display = 'flex';
+                statusEl.className = 'notification-status';
+                
+                if (permission === 'granted') {
+                    statusEl.classList.add('enabled');
+                    iconEl.textContent = '🔔';
+                    textEl.textContent = 'Notifications enabled';
+                } else if (permission === 'denied') {
+                    statusEl.classList.add('denied');
+                    iconEl.textContent = '🔕';
+                    textEl.textContent = 'Notifications blocked';
+                } else {
+                    iconEl.textContent = '🔔';
+                    textEl.textContent = 'Click to enable notifications';
+                    statusEl.style.cursor = 'pointer';
+                    statusEl.onclick = requestNotificationPermission;
+                }
+            } else {
+                statusEl.style.display = 'none';
+            }
+        }
+        
+        function requestNotificationPermission() {
+            if ('Notification' in window && Notification.permission === 'default') {
+                Notification.requestPermission().then(permission => {
+                    console.log('Notification permission:', permission);
+                    updateNotificationStatus();
+                });
+            }
+        }
+
+        function playNotificationSound() {
+            try {
+                // Create a simple notification beep using Web Audio API
+                const audioContext = new (window.AudioContext || window.webkitAudioContext)();
+                const oscillator = audioContext.createOscillator();
+                const gainNode = audioContext.createGain();
+                
+                oscillator.connect(gainNode);
+                gainNode.connect(audioContext.destination);
+                
+                oscillator.frequency.setValueAtTime(800, audioContext.currentTime);
+                oscillator.frequency.setValueAtTime(600, audioContext.currentTime + 0.1);
+                
+                gainNode.gain.setValueAtTime(0.1, audioContext.currentTime);
+                gainNode.gain.exponentialRampToValueAtTime(0.01, audioContext.currentTime + 0.2);
+                
+                oscillator.start(audioContext.currentTime);
+                oscillator.stop(audioContext.currentTime + 0.2);
+            } catch (e) {
+                console.log('Could not play notification sound:', e);
+            }
+        }
+
+        function showNotification(title, body, icon = null) {
+            if ('Notification' in window && Notification.permission === 'granted' && !isPageVisible) {
+                const notification = new Notification(title, {
+                    body: body,
+                    icon: icon || 'data:image/svg+xml,%3Csvg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="%234a90e2"%3E%3Cpath d="M12 2C6.48 2 2 6.48 2 12c0 1.54.36 3.04 1.05 4.4L1 22l5.6-2.05C8.96 21.64 10.46 22 12 22c5.52 0 10-4.48 10-10S17.52 2 12 2zm-1 15h-2v-2h2v2zm0-4h-2V9h2v4z"%2F%3E%3C/svg%3E',
+                    tag: 'echoroom-message',
+                    requireInteraction: false
+                });
+                
+                // Auto close after 5 seconds
+                setTimeout(() => {
+                    notification.close();
+                }, 5000);
+                
+                // Focus window when notification is clicked
+                notification.onclick = () => {
+                    window.focus();
+                    notification.close();
+                };
+                
+                // Play sound only when notifications are enabled
+                playNotificationSound();
+            }
+        }
+
+        function startTitleBlink() {
+            if (titleBlinkInterval) return; // Already blinking
+            
+            let isOriginal = true;
+            titleBlinkInterval = setInterval(() => {
+                if (isOriginal) {
+                    document.title = `(${unreadCount}) New message${unreadCount > 1 ? 's' : ''} - EchoRoom`;
+                } else {
+                    document.title = originalTitle;
+                }
+                isOriginal = !isOriginal;
+            }, 1500); // Slow blink every 1.5 seconds
+        }
+
+        function stopTitleBlink() {
+            if (titleBlinkInterval) {
+                clearInterval(titleBlinkInterval);
+                titleBlinkInterval = null;
+                document.title = originalTitle;
+                unreadCount = 0;
+            }
+        }
+
+        // Page visibility API to track when user is active
+        document.addEventListener('visibilitychange', () => {
+            isPageVisible = !document.hidden;
+            if (isPageVisible) {
+                stopTitleBlink();
+            }
+        });
+
+        // Track window focus
+        window.addEventListener('focus', () => {
+            isPageVisible = true;
+            stopTitleBlink();
+        });
+
+        window.addEventListener('blur', () => {
+            isPageVisible = false;
+        });
+
+        function showLoadingSpinner(show = true) {
+            const status = document.getElementById('status');
+            const spinner = document.getElementById('loadingSpinner');
+            const statusContent = status.querySelector('.status-content');
+            
+            if (show) {
+                status.classList.add('connecting');
+                spinner.style.display = 'flex';
+                statusContent.style.display = 'none';
+            } else {
+                status.classList.remove('connecting');
+                spinner.style.display = 'none';
+                statusContent.style.display = 'flex';
+            }
+        }
+
         function initializeRandomUsername() {
             const randomUsername = getRandomUsername();
             username = randomUsername;
@@ -84,10 +277,16 @@ let ws = null;
             const messageInput = document.getElementById('messageInput');
             const sendButton = document.getElementById('sendButton');
 
+            // Show loading spinner while connecting
+            showLoadingSpinner(true);
+
             ws = new WebSocket('ws://localhost:8080/ws');
 
             ws.onopen = function () {
-                status.innerHTML = '<span class="status-dot"></span><span>Connected</span>';
+                showLoadingSpinner(false);
+                const statusContent = status.querySelector('.status-content');
+                const statusText = statusContent.querySelector('.status-text');
+                statusText.textContent = 'Connected';
                 status.className = 'status connected';
                 messageInput.disabled = false;
                 sendButton.disabled = false;
@@ -147,6 +346,18 @@ let ws = null;
                     }
 
                     displayMessage(message);
+                    
+                    // Show notification for new messages when page is not visible
+                    if (message.type === 'message' && message.username !== username && !isPageVisible) {
+                        if ('Notification' in window && Notification.permission === 'granted') {
+                            unreadCount++;
+                            showNotification(
+                                `New message in #${currentChannel}`,
+                                `${message.username}: ${message.content}`,
+                            );
+                            startTitleBlink();
+                        }
+                    }
                 } catch (e) {
                     displayMessage({
                         username: 'System',
@@ -157,12 +368,22 @@ let ws = null;
             };
 
             ws.onclose = function () {
-                status.innerHTML = '<span class="status-dot"></span><span>Disconnected</span>';
+                showLoadingSpinner(false);
+                const statusContent = status.querySelector('.status-content');
+                const statusText = statusContent.querySelector('.status-text');
+                statusText.textContent = 'Disconnected';
                 status.className = 'status disconnected';
                 messageInput.disabled = true;
                 sendButton.disabled = true;
                 console.log('Disconnected from WebSocket');
 
+                // Show reconnecting message after 1 second
+                setTimeout(() => {
+                    if (!ws || ws.readyState === WebSocket.CLOSED) {
+                        showLoadingSpinner(true);
+                    }
+                }, 1000);
+                
                 setTimeout(connect, 3000);
             };
 
@@ -341,16 +562,24 @@ let ws = null;
             let timestampHtml = '';
             if (message.type !== 'channel_switch') {
                 let timestampStr = '';
+                let fullTimestamp = '';
+                
                 if (message.timestamp) {
                     // If message has timestamp from server (history messages)
-                    const date = new Date(message.timestamp);
-                    timestampStr = date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+                    fullTimestamp = message.timestamp;
+                    try {
+                        timestampStr = getRelativeTime(message.timestamp);
+                    } catch (e) {
+                        console.log('Error parsing timestamp:', message.timestamp);
+                        timestampStr = 'unknown time';
+                    }
                 } else {
                     // If no timestamp, use current time (real-time messages)
-                    const now = new Date();
-                    timestampStr = now.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+                    fullTimestamp = new Date().toISOString();
+                    timestampStr = 'just now';
                 }
-                timestampHtml = `<span class="timestamp">${timestampStr}</span>`;
+                
+                timestampHtml = `<span class="timestamp" title="${new Date(fullTimestamp).toLocaleString()}" data-timestamp="${fullTimestamp}">${timestampStr}</span>`;
             }
 
             messageDiv.innerHTML = `
@@ -372,7 +601,7 @@ let ws = null;
 
         document.getElementById('newChannelInput').addEventListener('keypress', function (e) {
             if (e.key === 'Enter') {
-                createChannel();
+                createChannelWithSpinner();
             }
         });
 
@@ -423,7 +652,40 @@ let ws = null;
             }
         }
 
+        // Function to update all relative timestamps
+        function updateTimestamps() {
+            const timestamps = document.querySelectorAll('.timestamp[data-timestamp]');
+            timestamps.forEach(timestampEl => {
+                const originalTime = timestampEl.getAttribute('data-timestamp');
+                if (originalTime) {
+                    timestampEl.textContent = getRelativeTime(originalTime);
+                }
+            });
+        }
+
+        // Update timestamps every 5 seconds
+        setInterval(updateTimestamps, 5000);
+
+        // Add loading spinner for channel creation
+        window.createChannelWithSpinner = function() {
+            const button = document.querySelector('.channel-input button');
+            const originalText = button.textContent;
+            
+            button.innerHTML = '<div class="spinner" style="width: 12px; height: 12px; border-width: 1px;"></div>';
+            button.disabled = true;
+            
+            createChannel();
+            
+            // Reset button after a short delay
+            setTimeout(() => {
+                button.textContent = originalText;
+                button.disabled = false;
+            }, 1000);
+        }
+
         // Initialize theme, random username and connect when page loads
         initializeTheme();
         initializeRandomUsername();
+        updateNotificationStatus();
+        requestNotificationPermission();
         connect();
