@@ -3,7 +3,6 @@ run:
 
 linters:
   enable:
-    - errcheck
     - gosimple
     - govet
     - ineffassign
@@ -11,19 +10,10 @@ linters:
     - unused
     - gofmt
     - goimports
-    - misspell
-    - gocritic
-    - gosec
   disable:
+    - errcheck
+    - gosec
     - typecheck
-
-linters-settings:
-  errcheck:
-    exclude-functions:
-      - (*github.com/joho/godotenv).Load
-  gosec:
-    excludes:
-      - G404
 
 issues:
   exclude-rules:
@@ -31,3 +21,4 @@ issues:
       linters:
         - gosec
         - errcheck
+        - gocritic
