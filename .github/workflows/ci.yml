@@ -138,25 +138,28 @@ jobs:
         cp init.sql vps-deployment/
         cp -r assets vps-deployment/ 2>/dev/null || true
         
-        # Create VPS deployment script
-        cat > vps-deployment/deploy.sh << 'EOF'
+        # Create VPS deployment script with variables
+        DOCKER_USERNAME="${{ secrets.DOCKER_USERNAME }}"
+        GITHUB_SHA="${{ github.sha }}"
+        
+        cat > vps-deployment/deploy.sh << DEPLOYEOF
         #!/bin/bash
         set -e
         
         echo "🚀 Starting VPS deployment..."
         
         # Set image name
-        IMAGE_NAME="${{ secrets.DOCKER_USERNAME }}/echoroom"
+        IMAGE_NAME="${DOCKER_USERNAME}/echoroom"
         
         # Pull latest Docker image
-        docker pull ${IMAGE_NAME}:${{ github.sha }}
+        docker pull \${IMAGE_NAME}:${GITHUB_SHA}
         
         # Create environment file
         echo "DB_PASSWORD=\${DB_PASSWORD}" > .env
-        echo "DOCKER_IMAGE=\${IMAGE_NAME}:${{ github.sha }}" >> .env
+        echo "DOCKER_IMAGE=\${IMAGE_NAME}:${GITHUB_SHA}" >> .env
         
         # Update docker-compose to use specific image
-        sed -i "s|image: .*|image: ${IMAGE_NAME}:${{ github.sha }}|" docker-compose.prod.yml
+        sed -i "s|image: .*|image: \${IMAGE_NAME}:${GITHUB_SHA}|" docker-compose.prod.yml
         
         # Create SSL directory (needed for nginx)
         mkdir -p ssl
@@ -167,7 +170,7 @@ jobs:
         # Create database backup
         if docker ps --format "table {{.Names}}" | grep -q postgres; then
           echo "📦 Creating database backup..."
-          docker-compose -f docker-compose.prod.yml exec -T postgres pg_dump -U postgres chat_app > backup-$(date +%Y%m%d-%H%M%S).sql 2>/dev/null || true
+          docker-compose -f docker-compose.prod.yml exec -T postgres pg_dump -U postgres chat_app > backup-\$(date +%Y%m%d-%H%M%S).sql 2>/dev/null || true
         fi
         
         # Start services
@@ -183,18 +186,18 @@ jobs:
             echo "✅ Health check passed!"
             break
           else
-            echo "⏳ Health check attempt $i failed, retrying..."
+            echo "⏳ Health check attempt \$i failed, retrying..."
             sleep 5
           fi
           
-          if [ $i -eq 10 ]; then
+          if [ \$i -eq 10 ]; then
             echo "❌ Health check failed after 10 attempts"
             exit 1
           fi
         done
         
         echo "🎉 VPS deployment completed successfully!"
-        EOF
+        DEPLOYEOF
         
         chmod +x vps-deployment/deploy.sh
         
