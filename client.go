@@ -167,13 +167,13 @@ func (c *Client) switchChannelWithType(newChannelName string, channelType Channe
 	c.hub.channelsMu.RLock()
 	channel, ok := c.hub.channels[oldChannel]
 	c.hub.channelsMu.RUnlock()
-	
+
 	if ok {
 		channel.clientsMu.Lock()
 		delete(channel.clients, c)
 		clientCount := len(channel.clients)
 		channel.clientsMu.Unlock()
-		
+
 		if clientCount == 0 && oldChannel != "general" {
 			// Only delete ephemeral channels when empty
 			if channel.channelType == Ephemeral {
@@ -308,7 +308,7 @@ func (c *Client) switchChannel(newChannelName string) {
 	c.hub.channelsMu.RLock()
 	channel, ok := c.hub.channels[oldChannel]
 	c.hub.channelsMu.RUnlock()
-	
+
 	if ok {
 		channel.clientsMu.Lock()
 		// Send leave message for ephemeral channels if there are other clients
@@ -329,7 +329,7 @@ func (c *Client) switchChannel(newChannelName string) {
 		delete(channel.clients, c)
 		clientCount := len(channel.clients)
 		channel.clientsMu.Unlock()
-		
+
 		if clientCount == 0 && oldChannel != "general" {
 			// Only delete ephemeral channels when empty
 			if channel.channelType == Ephemeral {

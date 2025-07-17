@@ -297,7 +297,7 @@ func TestEphemeralChannelCleanup(t *testing.T) {
 	hub.channelsMu.RLock()
 	_, exists := hub.channels["ephemeral-test"]
 	hub.channelsMu.RUnlock()
-	
+
 	if !exists {
 		t.Error("Ephemeral channel should exist after creation")
 	}
@@ -310,7 +310,7 @@ func TestEphemeralChannelCleanup(t *testing.T) {
 	hub.channelsMu.RLock()
 	_, exists = hub.channels["ephemeral-test"]
 	hub.channelsMu.RUnlock()
-	
+
 	if exists {
 		t.Error("Ephemeral channel should be cleaned up after last client disconnects")
 	}
@@ -375,7 +375,7 @@ func TestConcurrentClients(t *testing.T) {
 	hub.channelsMu.RLock()
 	generalChannel, exists := hub.channels["general"]
 	hub.channelsMu.RUnlock()
-	
+
 	if !exists {
 		t.Fatal("General channel should exist")
 	}
@@ -383,7 +383,7 @@ func TestConcurrentClients(t *testing.T) {
 	generalChannel.clientsMu.RLock()
 	clientCount := len(generalChannel.clients)
 	generalChannel.clientsMu.RUnlock()
-	
+
 	if clientCount != numClients {
 		t.Errorf("Expected %d clients in general channel, got %d", numClients, clientCount)
 	}
