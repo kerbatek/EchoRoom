@@ -3,6 +3,7 @@ package main
 import (
 	"database/sql"
 	"net/http"
+	"sync"
 	"time"
 
 	"github.com/gorilla/websocket"
@@ -16,6 +17,7 @@ var upgrader = websocket.Upgrader{
 
 type Hub struct {
 	channels   map[string]*Channel
+	channelsMu sync.RWMutex
 	register   chan *Client
 	unregister chan *Client
 	broadcast  chan []byte
@@ -34,6 +36,7 @@ type Channel struct {
 	name        string
 	channelType ChannelType
 	clients     map[*Client]bool
+	clientsMu   sync.RWMutex
 	broadcast   chan []byte
 	shutdown    chan bool
 }

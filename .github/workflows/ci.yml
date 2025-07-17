@@ -1,0 +1,311 @@
+name: CI/CD Pipeline
+
+on:
+  push:
+    branches: [ main, develop ]
+  pull_request:
+    branches: [ main ]
+
+jobs:
+  test:
+    name: Test
+    runs-on: ubuntu-latest
+    
+    services:
+      postgres:
+        image: postgres:15
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: chat_app_test
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+        ports:
+          - 5432:5432
+    
+    steps:
+    - uses: actions/checkout@v4
+    
+    - name: Set up Go
+      uses: actions/setup-go@v5
+      with:
+        go-version: '1.24.4'
+    
+    - name: Install dependencies
+      run: go mod download
+    
+    - name: Run tests
+      env:
+        TEST_DB_HOST: localhost
+        TEST_DB_PORT: 5432
+        TEST_DB_USER: postgres
+        TEST_DB_PASSWORD: postgres
+        TEST_DB_NAME: chat_app_test
+        TEST_DB_SSLMODE: disable
+      run: go test -v -race -coverprofile=coverage.out ./...
+    
+    - name: Upload coverage
+      uses: codecov/codecov-action@v4
+      with:
+        file: ./coverage.out
+
+  lint:
+    name: Lint
+    runs-on: ubuntu-latest
+    steps:
+    - uses: actions/checkout@v4
+    
+    - name: Set up Go
+      uses: actions/setup-go@v5
+      with:
+        go-version: '1.24.4'
+    
+    - name: golangci-lint
+      uses: golangci/golangci-lint-action@v6
+      with:
+        version: latest
+
+  build:
+    name: Build
+    runs-on: ubuntu-latest
+    needs: [test, lint]
+    
+    steps:
+    - uses: actions/checkout@v4
+    
+    - name: Set up Go
+      uses: actions/setup-go@v5
+      with:
+        go-version: '1.24.4'
+    
+    - name: Build
+      run: go build -v ./...
+
+  docker:
+    name: Docker Build
+    runs-on: ubuntu-latest
+    needs: [test, lint]
+    if: github.event_name != 'pull_request'
+    
+    steps:
+    - uses: actions/checkout@v4
+    
+    - name: Set up Docker Buildx
+      uses: docker/setup-buildx-action@v3
+    
+    - name: Login to Docker Hub
+      if: github.ref == 'refs/heads/main'
+      uses: docker/login-action@v3
+      with:
+        username: ${{ secrets.DOCKER_USERNAME }}
+        password: ${{ secrets.DOCKER_PASSWORD }}
+    
+    - name: Build and push
+      uses: docker/build-push-action@v5
+      with:
+        context: .
+        push: ${{ github.ref == 'refs/heads/main' }}
+        tags: |
+          ${{ github.repository }}:latest
+          ${{ github.repository }}:${{ github.sha }}
+
+  deploy:
+    name: Deploy to VPS
+    runs-on: ubuntu-latest
+    needs: [test, lint, build, docker]
+    if: github.ref == 'refs/heads/main'
+    environment: production
+    
+    steps:
+    - uses: actions/checkout@v4
+    
+    - name: Create VPS deployment package
+      run: |
+        mkdir -p vps-deployment
+        
+        # Copy essential files for VPS deployment
+        cp Dockerfile vps-deployment/
+        cp docker-compose.prod.yml vps-deployment/
+        cp nginx.conf vps-deployment/
+        cp init.sql vps-deployment/
+        cp -r assets vps-deployment/ 2>/dev/null || true
+        
+        # Create VPS deployment script
+        cat > vps-deployment/deploy.sh << 'EOF'
+        #!/bin/bash
+        set -e
+        
+        echo "🚀 Starting VPS deployment..."
+        
+        # Pull latest Docker image
+        docker pull ${{ github.repository }}:${{ github.sha }}
+        
+        # Create environment file
+        cat > .env << ENVEOF
+        DB_PASSWORD=${DB_PASSWORD}
+        DOCKER_IMAGE=${{ github.repository }}:${{ github.sha }}
+        ENVEOF
+        
+        # Update docker-compose to use specific image
+        sed -i 's|image: .*|image: ${{ github.repository }}:${{ github.sha }}|' docker-compose.prod.yml
+        
+        # Stop existing services
+        docker-compose -f docker-compose.prod.yml down || true
+        
+        # Create database backup
+        if docker ps -a --format "table {{.Names}}" | grep -q postgres; then
+          echo "📦 Creating database backup..."
+          docker exec postgres pg_dump -U postgres chat_app > backup-$(date +%Y%m%d-%H%M%S).sql 2>/dev/null || true
+        fi
+        
+        # Start services
+        docker-compose -f docker-compose.prod.yml up -d
+        
+        # Wait for services to start
+        echo "⏳ Waiting for services to start..."
+        sleep 30
+        
+        # Health check
+        for i in {1..10}; do
+          if curl -f http://localhost:8080/health 2>/dev/null; then
+            echo "✅ Health check passed!"
+            break
+          else
+            echo "⏳ Health check attempt $i failed, retrying..."
+            sleep 5
+          fi
+          
+          if [ $i -eq 10 ]; then
+            echo "❌ Health check failed after 10 attempts"
+            exit 1
+          fi
+        done
+        
+        echo "🎉 VPS deployment completed successfully!"
+        EOF
+        
+        chmod +x vps-deployment/deploy.sh
+        
+        # Create deployment archive
+        tar -czf vps-deployment.tar.gz vps-deployment/
+    
+    - name: Copy files to VPS
+      uses: appleboy/scp-action@v0.1.4
+      with:
+        host: ${{ secrets.VPS_HOST }}
+        username: ${{ secrets.VPS_USER }}
+        key: ${{ secrets.VPS_SSH_KEY }}
+        port: ${{ secrets.VPS_PORT || 22 }}
+        source: "vps-deployment.tar.gz"
+        target: "/tmp/"
+        
+    - name: Deploy to VPS
+      uses: appleboy/ssh-action@v1.0.0
+      with:
+        host: ${{ secrets.VPS_HOST }}
+        username: ${{ secrets.VPS_USER }}
+        key: ${{ secrets.VPS_SSH_KEY }}
+        port: ${{ secrets.VPS_PORT || 22 }}
+        script: |
+          # Setup deployment directory
+          APP_DIR="/opt/echoroom"
+          BACKUP_DIR="/opt/echoroom/backups"
+          
+          # Create directories
+          mkdir -p $APP_DIR $BACKUP_DIR
+          
+          # Backup current deployment
+          if [ -d "$APP_DIR/current" ]; then
+            echo "📦 Creating backup..."
+            cp -r $APP_DIR/current $BACKUP_DIR/backup-$(date +%Y%m%d-%H%M%S)
+            
+            # Keep only last 5 backups
+            ls -t $BACKUP_DIR/backup-* | tail -n +6 | xargs rm -rf
+          fi
+          
+          # Extract new deployment
+          cd /tmp
+          tar -xzf vps-deployment.tar.gz
+          
+          # Replace current deployment
+          rm -rf $APP_DIR/current
+          mv vps-deployment $APP_DIR/current
+          
+          # Execute deployment
+          cd $APP_DIR/current
+          export DB_PASSWORD="${{ secrets.DB_PASSWORD }}"
+          ./deploy.sh
+          
+          # Cleanup
+          rm -f /tmp/vps-deployment.tar.gz
+    
+    - name: Verify deployment
+      run: |
+        echo "🔍 Verifying deployment..."
+        sleep 15  # Additional wait time
+        
+        # Health check with retry
+        for i in {1..5}; do
+          if curl -f http://${{ secrets.VPS_HOST }}:8080/health; then
+            echo "✅ Deployment verification passed!"
+            break
+          else
+            echo "⏳ Verification attempt $i failed, retrying..."
+            sleep 10
+          fi
+          
+          if [ $i -eq 5 ]; then
+            echo "❌ Deployment verification failed"
+            exit 1
+          fi
+        done
+        
+    - name: Deployment success notification
+      if: success()
+      run: |
+        echo "🎉 EchoRoom successfully deployed to VPS!"
+        echo "🔗 Application URL: http://${{ secrets.VPS_HOST }}:8080"
+        echo "📝 Commit: ${{ github.sha }}"
+        echo "🌿 Branch: ${{ github.ref_name }}"
+        echo "⏰ Deployed at: $(date)"
+    
+    - name: Rollback on failure
+      if: failure()
+      uses: appleboy/ssh-action@v1.0.0
+      with:
+        host: ${{ secrets.VPS_HOST }}
+        username: ${{ secrets.VPS_USER }}
+        key: ${{ secrets.VPS_SSH_KEY }}
+        port: ${{ secrets.VPS_PORT || 22 }}
+        script: |
+          echo "❌ Deployment failed! Starting rollback..."
+          
+          APP_DIR="/opt/echoroom"
+          BACKUP_DIR="/opt/echoroom/backups"
+          
+          # Find the latest backup
+          LATEST_BACKUP=$(ls -t $BACKUP_DIR/backup-* 2>/dev/null | head -1)
+          
+          if [ -n "$LATEST_BACKUP" ]; then
+            echo "🔄 Rolling back to: $(basename $LATEST_BACKUP)"
+            
+            # Stop current services
+            cd $APP_DIR/current
+            docker-compose -f docker-compose.prod.yml down || true
+            
+            # Restore backup
+            cd $APP_DIR
+            rm -rf current
+            cp -r $LATEST_BACKUP current
+            
+            # Start services
+            cd $APP_DIR/current
+            docker-compose -f docker-compose.prod.yml up -d
+            
+            echo "✅ Rollback completed"
+          else
+            echo "❌ No backup found for rollback"
+          fi

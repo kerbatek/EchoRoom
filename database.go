@@ -5,10 +5,9 @@ import (
 	"fmt"
 	"log"
 	"os"
-	
+
 	_ "github.com/lib/pq"
 )
-
 
 func getEnv(key, defaultValue string) string {
 	if value := os.Getenv(key); value != "" {

@@ -57,7 +57,7 @@ func TestFullWorkflow(t *testing.T) {
 	conn1.ReadMessage() // Drain active_channels
 	conn2.SetReadDeadline(time.Now().Add(100 * time.Millisecond))
 	conn2.ReadMessage() // Drain active_channels
-	
+
 	// Reset deadlines
 	conn1.SetReadDeadline(time.Time{})
 	conn2.SetReadDeadline(time.Time{})
@@ -93,7 +93,7 @@ func TestFullWorkflow(t *testing.T) {
 			break
 		}
 	}
-	
+
 	if !found {
 		t.Errorf("Expected channel_switch message")
 	}
@@ -104,6 +104,9 @@ func TestFullWorkflow(t *testing.T) {
 	if err != nil {
 		// Might be active_channels message first, try again
 		_, _, err = conn2.ReadMessage()
+		if err != nil {
+			t.Logf("Warning: Could not read message from conn2: %v", err)
+		}
 	}
 
 	// Test 2: Send a message in the persistent channel
@@ -191,13 +194,13 @@ func TestFullWorkflow(t *testing.T) {
 		if err != nil {
 			continue
 		}
-		
+
 		if receivedChatMsg.Type == "message" && receivedChatMsg.Content == "Hello from client 2!" {
 			found = true
 			break
 		}
 	}
-	
+
 	if !found {
 		t.Errorf("Expected 'Hello from client 2!', got '%s'", receivedChatMsg.Content)
 	}
@@ -233,9 +236,9 @@ func TestFullWorkflow(t *testing.T) {
 
 		var historyMsg Message
 		if json.Unmarshal(msg, &historyMsg) == nil {
-			if historyMsg.Type == "message" && 
-			   (historyMsg.Content == "Hello from persistent channel!" || 
-			    historyMsg.Content == "Hello from client 2!") {
+			if historyMsg.Type == "message" &&
+				(historyMsg.Content == "Hello from persistent channel!" ||
+					historyMsg.Content == "Hello from client 2!") {
 				historyReceived = true
 				break
 			}
@@ -291,7 +294,11 @@ func TestEphemeralChannelCleanup(t *testing.T) {
 	time.Sleep(100 * time.Millisecond)
 
 	// Verify channel exists
-	if _, exists := hub.channels["ephemeral-test"]; !exists {
+	hub.channelsMu.RLock()
+	_, exists := hub.channels["ephemeral-test"]
+	hub.channelsMu.RUnlock()
+
+	if !exists {
 		t.Error("Ephemeral channel should exist after creation")
 	}
 
@@ -300,7 +307,11 @@ func TestEphemeralChannelCleanup(t *testing.T) {
 	time.Sleep(200 * time.Millisecond)
 
 	// Verify ephemeral channel was cleaned up
-	if _, exists := hub.channels["ephemeral-test"]; exists {
+	hub.channelsMu.RLock()
+	_, exists = hub.channels["ephemeral-test"]
+	hub.channelsMu.RUnlock()
+
+	if exists {
 		t.Error("Ephemeral channel should be cleaned up after last client disconnects")
 	}
 
@@ -354,20 +365,27 @@ func TestConcurrentClients(t *testing.T) {
 
 	// Give time for all initial messages to settle
 	time.Sleep(200 * time.Millisecond)
-	
+
 	// Reset deadlines
 	for i := 0; i < numClients; i++ {
 		connections[i].SetReadDeadline(time.Time{})
 	}
 
 	// All clients should be in general channel
+	hub.channelsMu.RLock()
 	generalChannel, exists := hub.channels["general"]
+	hub.channelsMu.RUnlock()
+
 	if !exists {
 		t.Fatal("General channel should exist")
 	}
 
-	if len(generalChannel.clients) != numClients {
-		t.Errorf("Expected %d clients in general channel, got %d", numClients, len(generalChannel.clients))
+	generalChannel.clientsMu.RLock()
+	clientCount := len(generalChannel.clients)
+	generalChannel.clientsMu.RUnlock()
+
+	if clientCount != numClients {
+		t.Errorf("Expected %d clients in general channel, got %d", numClients, clientCount)
 	}
 
 	// Test broadcasting to all clients
@@ -388,7 +406,7 @@ func TestConcurrentClients(t *testing.T) {
 	for i := 1; i < numClients; i++ {
 		found := false
 		connections[i].SetReadDeadline(time.Now().Add(1000 * time.Millisecond))
-		
+
 		// Keep reading until we find the broadcast message we're looking for
 		for !found {
 			_, msg, err := connections[i].ReadMessage()
@@ -404,7 +422,7 @@ func TestConcurrentClients(t *testing.T) {
 				}
 			}
 		}
-		
+
 		if !found {
 			t.Errorf("Client %d did not receive the expected broadcast message", i)
 		}

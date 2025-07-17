@@ -18,6 +18,7 @@ func (c *Channel) run(hubShutdown chan bool) {
 		case <-hubShutdown:
 			return
 		case message := <-c.broadcast:
+			c.clientsMu.Lock()
 			for client := range c.clients {
 				select {
 				case client.send <- message:
@@ -26,6 +27,7 @@ func (c *Channel) run(hubShutdown chan bool) {
 					delete(c.clients, client)
 				}
 			}
+			c.clientsMu.Unlock()
 		}
 	}
 }

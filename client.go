@@ -5,7 +5,7 @@ import (
 	"fmt"
 	"log"
 	"time"
-	
+
 	"github.com/gorilla/websocket"
 )
 
@@ -39,17 +39,17 @@ func (c *Client) readPump() {
 				log.Printf("Error unmarshaling user_connected message: %v", err)
 				continue
 			}
-			
+
 			// Set username and send join message immediately
 			if message.Username != "" && c.username != message.Username {
 				c.username = message.Username
 				c.hasJoined = true
-				
+
 				channelName := c.channel
 				if channelName == "" {
 					channelName = "general"
 				}
-				
+
 				// Send join message for ephemeral channels if there are other clients
 				if channel, ok := c.hub.channels[channelName]; ok && channel.channelType == Ephemeral {
 					if len(channel.clients) > 1 {
@@ -127,7 +127,7 @@ func (c *Client) readPump() {
 		if message.Type == "message" {
 			// Set timestamp for all messages
 			message.Timestamp = time.Now().UTC()
-			
+
 			// Only save to database if channel is persistent
 			if channel, ok := c.hub.channels[channelName]; ok && channel.channelType == Persistent {
 				if err := c.hub.saveMessage(message); err != nil {
@@ -164,12 +164,22 @@ func (c *Client) switchChannelWithType(newChannelName string, channelType Channe
 		oldChannel = "general"
 	}
 
-	if channel, ok := c.hub.channels[oldChannel]; ok {
+	c.hub.channelsMu.RLock()
+	channel, ok := c.hub.channels[oldChannel]
+	c.hub.channelsMu.RUnlock()
+
+	if ok {
+		channel.clientsMu.Lock()
 		delete(channel.clients, c)
-		if len(channel.clients) == 0 && oldChannel != "general" {
+		clientCount := len(channel.clients)
+		channel.clientsMu.Unlock()
+
+		if clientCount == 0 && oldChannel != "general" {
 			// Only delete ephemeral channels when empty
 			if channel.channelType == Ephemeral {
+				c.hub.channelsMu.Lock()
 				delete(c.hub.channels, oldChannel)
+				c.hub.channelsMu.Unlock()
 
 				// Broadcast channel deletion to all clients
 				channelDeletedMsg := Message{
@@ -188,7 +198,9 @@ func (c *Client) switchChannelWithType(newChannelName string, channelType Channe
 				}
 			} else {
 				// For persistent channels, just remove from memory
+				c.hub.channelsMu.Lock()
 				delete(c.hub.channels, oldChannel)
+				c.hub.channelsMu.Unlock()
 			}
 		}
 	}
@@ -196,16 +208,22 @@ func (c *Client) switchChannelWithType(newChannelName string, channelType Channe
 	c.channel = newChannelName
 
 	channelCreated := false
+	c.hub.channelsMu.Lock()
 	if _, ok := c.hub.channels[newChannelName]; !ok {
 		c.hub.channels[newChannelName] = newChannel(newChannelName, channelType)
 		go c.hub.channels[newChannelName].run(c.hub.shutdown)
 		channelCreated = true
 	}
+	newChannel := c.hub.channels[newChannelName]
+	c.hub.channelsMu.Unlock()
 
-	c.hub.channels[newChannelName].clients[c] = true
+	newChannel.clientsMu.Lock()
+	newChannel.clients[c] = true
+	clientCount := len(newChannel.clients)
+	newChannel.clientsMu.Unlock()
 
 	// Send join message for ephemeral channels if there are other clients and we have a username
-	if newChannel := c.hub.channels[newChannelName]; newChannel.channelType == Ephemeral && len(newChannel.clients) > 1 && c.username != "" {
+	if newChannel.channelType == Ephemeral && clientCount > 1 && c.username != "" {
 		joinMsg := Message{
 			Username:  "System",
 			Content:   fmt.Sprintf("%s joined the channel", c.username),
@@ -232,10 +250,10 @@ func (c *Client) switchChannelWithType(newChannelName string, channelType Channe
 
 		if msgBytes, err := json.Marshal(channelCreatedMsg); err == nil {
 			select {
-		case c.hub.broadcast <- msgBytes:
-		default:
-			// Hub broadcast channel is full, skip
-		}
+			case c.hub.broadcast <- msgBytes:
+			default:
+				// Hub broadcast channel is full, skip
+			}
 		}
 	}
 
@@ -251,7 +269,7 @@ func (c *Client) switchChannelWithType(newChannelName string, channelType Channe
 	}
 
 	// Send message history for persistent channels AFTER channel switch message
-	if c.hub.channels[newChannelName].channelType == Persistent {
+	if newChannel.channelType == Persistent {
 		history, err := c.hub.getChannelHistory(newChannelName, 50)
 		if err == nil {
 			log.Printf("Loading %d messages from history for channel '%s'", len(history), newChannelName)
@@ -287,7 +305,12 @@ func (c *Client) switchChannel(newChannelName string) {
 		oldChannel = "general"
 	}
 
-	if channel, ok := c.hub.channels[oldChannel]; ok {
+	c.hub.channelsMu.RLock()
+	channel, ok := c.hub.channels[oldChannel]
+	c.hub.channelsMu.RUnlock()
+
+	if ok {
+		channel.clientsMu.Lock()
 		// Send leave message for ephemeral channels if there are other clients
 		if channel.channelType == Ephemeral && len(channel.clients) > 1 && c.username != "" {
 			leaveMsg := Message{
@@ -302,12 +325,17 @@ func (c *Client) switchChannel(newChannelName string) {
 				channel.broadcast <- leaveMsgBytes
 			}
 		}
-		
+
 		delete(channel.clients, c)
-		if len(channel.clients) == 0 && oldChannel != "general" {
+		clientCount := len(channel.clients)
+		channel.clientsMu.Unlock()
+
+		if clientCount == 0 && oldChannel != "general" {
 			// Only delete ephemeral channels when empty
 			if channel.channelType == Ephemeral {
+				c.hub.channelsMu.Lock()
 				delete(c.hub.channels, oldChannel)
+				c.hub.channelsMu.Unlock()
 
 				// Broadcast channel deletion to all clients
 				channelDeletedMsg := Message{
@@ -326,7 +354,9 @@ func (c *Client) switchChannel(newChannelName string) {
 				}
 			} else {
 				// For persistent channels, just remove from memory
+				c.hub.channelsMu.Lock()
 				delete(c.hub.channels, oldChannel)
+				c.hub.channelsMu.Unlock()
 			}
 		}
 	}
@@ -334,6 +364,7 @@ func (c *Client) switchChannel(newChannelName string) {
 	c.channel = newChannelName
 
 	channelCreated := false
+	c.hub.channelsMu.Lock()
 	if _, ok := c.hub.channels[newChannelName]; !ok {
 		// Get channel type from database, default to ephemeral if not found
 		channelType, err := c.hub.getChannelType(newChannelName)
@@ -345,11 +376,16 @@ func (c *Client) switchChannel(newChannelName string) {
 		go c.hub.channels[newChannelName].run(c.hub.shutdown)
 		channelCreated = true
 	}
+	newChannel := c.hub.channels[newChannelName]
+	c.hub.channelsMu.Unlock()
 
-	c.hub.channels[newChannelName].clients[c] = true
+	newChannel.clientsMu.Lock()
+	newChannel.clients[c] = true
+	clientCount := len(newChannel.clients)
+	newChannel.clientsMu.Unlock()
 
 	// Send join message for ephemeral channels if there are other clients and we have a username
-	if newChannel := c.hub.channels[newChannelName]; newChannel.channelType == Ephemeral && len(newChannel.clients) > 1 && c.username != "" {
+	if newChannel.channelType == Ephemeral && clientCount > 1 && c.username != "" {
 		joinMsg := Message{
 			Username:  "System",
 			Content:   fmt.Sprintf("%s joined the channel", c.username),
@@ -365,7 +401,7 @@ func (c *Client) switchChannel(newChannelName string) {
 
 	if channelCreated {
 		// Get the channel type to send in the message
-		channelType := c.hub.channels[newChannelName].channelType
+		channelType := newChannel.channelType
 
 		channelCreatedMsg := struct {
 			Type        string      `json:"type"`
@@ -379,10 +415,10 @@ func (c *Client) switchChannel(newChannelName string) {
 
 		if msgBytes, err := json.Marshal(channelCreatedMsg); err == nil {
 			select {
-		case c.hub.broadcast <- msgBytes:
-		default:
-			// Hub broadcast channel is full, skip
-		}
+			case c.hub.broadcast <- msgBytes:
+			default:
+				// Hub broadcast channel is full, skip
+			}
 		}
 	}
 
@@ -398,7 +434,7 @@ func (c *Client) switchChannel(newChannelName string) {
 	}
 
 	// Send message history for persistent channels AFTER channel switch message
-	if c.hub.channels[newChannelName].channelType == Persistent {
+	if newChannel.channelType == Persistent {
 		history, err := c.hub.getChannelHistory(newChannelName, 50)
 		if err == nil {
 			log.Printf("Loading %d messages from history for channel '%s'", len(history), newChannelName)

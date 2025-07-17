@@ -47,11 +47,13 @@ func (h *Hub) sendActiveChannels(client *Client) {
 	}
 
 	// Add currently active ephemeral channels not in database
+	h.channelsMu.RLock()
 	for name, channel := range h.channels {
 		if _, exists := channelMap[name]; !exists && channel.channelType == Ephemeral {
 			channelInfos = append(channelInfos, ChannelInfo{Name: name, Type: Ephemeral})
 		}
 	}
+	h.channelsMu.RUnlock()
 
 	activeChannelsMsg := struct {
 		Type     string        `json:"type"`
@@ -81,6 +83,7 @@ func (h *Hub) run() {
 				channelName = "general"
 			}
 
+			h.channelsMu.Lock()
 			if _, ok := h.channels[channelName]; !ok {
 				// Get channel type from database, default to ephemeral if not found
 				channelType, err := h.getChannelType(channelName)
@@ -93,12 +96,17 @@ func (h *Hub) run() {
 				// Give the channel goroutine a moment to start
 				time.Sleep(1 * time.Millisecond)
 			}
+			channel := h.channels[channelName]
+			h.channelsMu.Unlock()
 
-			h.channels[channelName].clients[client] = true
-			log.Printf("Client connected to channel '%s'. Total clients in channel: %d", channelName, len(h.channels[channelName].clients))
+			channel.clientsMu.Lock()
+			channel.clients[client] = true
+			clientCount := len(channel.clients)
+			channel.clientsMu.Unlock()
+			log.Printf("Client connected to channel '%s'. Total clients in channel: %d", channelName, clientCount)
 
 			// Send message history for persistent channels
-			if h.channels[channelName].channelType == Persistent {
+			if channel.channelType == Persistent {
 				history, err := h.getChannelHistory(channelName, 50) // Last 50 messages
 				if err == nil {
 					for _, msg := range history {
@@ -123,15 +131,20 @@ func (h *Hub) run() {
 				channelName = "general"
 			}
 
-			if channel, ok := h.channels[channelName]; ok {
+			h.channelsMu.RLock()
+			channel, ok := h.channels[channelName]
+			h.channelsMu.RUnlock()
+
+			if ok {
+				channel.clientsMu.Lock()
 				if _, ok := channel.clients[client]; ok {
 					// Send leave message for ephemeral channels only if there will be other clients remaining
 					if channel.channelType == Ephemeral && len(channel.clients) > 1 && client.username != "" {
 						leaveMsg := Message{
-							Username: "System",
-							Content:  fmt.Sprintf("%s left the channel", client.username),
-							Type:     "system_message",
-							Channel:  channelName,
+							Username:  "System",
+							Content:   fmt.Sprintf("%s left the channel", client.username),
+							Type:      "system_message",
+							Channel:   channelName,
 							Timestamp: time.Now().UTC(),
 						}
 						if leaveMsgBytes, err := json.Marshal(leaveMsg); err == nil {
@@ -141,12 +154,16 @@ func (h *Hub) run() {
 					}
 
 					delete(channel.clients, client)
-					log.Printf("Client disconnected from channel '%s'. Total clients in channel: %d", channelName, len(channel.clients))
+					clientCount := len(channel.clients)
+					channel.clientsMu.Unlock()
+					log.Printf("Client disconnected from channel '%s'. Total clients in channel: %d", channelName, clientCount)
 
-					if len(channel.clients) == 0 && channelName != "general" {
+					if clientCount == 0 && channelName != "general" {
 						// Only remove ephemeral channels when empty
 						if channel.channelType == Ephemeral {
+							h.channelsMu.Lock()
 							delete(h.channels, channelName)
+							h.channelsMu.Unlock()
 							log.Printf("Ephemeral channel '%s' removed (no clients)", channelName)
 
 							// Broadcast channel deletion to all clients BEFORE closing the send channel
@@ -159,7 +176,9 @@ func (h *Hub) run() {
 
 							if msgBytes, err := json.Marshal(channelDeletedMsg); err == nil {
 								// Send to all remaining clients in all channels
+								h.channelsMu.RLock()
 								for _, ch := range h.channels {
+									ch.clientsMu.RLock()
 									for c := range ch.clients {
 										if c != client { // Don't send to the disconnecting client
 											select {
@@ -169,11 +188,15 @@ func (h *Hub) run() {
 											}
 										}
 									}
+									ch.clientsMu.RUnlock()
 								}
+								h.channelsMu.RUnlock()
 							}
 						} else {
 							// For persistent channels, keep the channel but remove it from memory
+							h.channelsMu.Lock()
 							delete(h.channels, channelName)
+							h.channelsMu.Unlock()
 							log.Printf("Persistent channel '%s' removed from memory (no clients, but preserved in database)", channelName)
 						}
 					}
@@ -182,7 +205,9 @@ func (h *Hub) run() {
 				}
 			}
 		case message := <-h.broadcast:
+			h.channelsMu.RLock()
 			for _, channel := range h.channels {
+				channel.clientsMu.Lock()
 				for client := range channel.clients {
 					select {
 					case client.send <- message:
@@ -191,20 +216,24 @@ func (h *Hub) run() {
 						delete(channel.clients, client)
 					}
 				}
+				channel.clientsMu.Unlock()
 			}
+			h.channelsMu.RUnlock()
 		}
 	}
 }
 
 func (h *Hub) stop() {
 	// Stop all channels first
+	h.channelsMu.RLock()
 	for _, channel := range h.channels {
 		select {
 		case channel.shutdown <- true:
 		default:
 		}
 	}
-	
+	h.channelsMu.RUnlock()
+
 	// Stop the hub
 	select {
 	case h.shutdown <- true:
