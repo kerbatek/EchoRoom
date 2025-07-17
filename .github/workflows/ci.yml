@@ -103,14 +103,19 @@ jobs:
         username: ${{ secrets.DOCKER_USERNAME }}
         password: ${{ secrets.DOCKER_PASSWORD }}
     
+    - name: Set image name
+      id: image
+      run: |
+        echo "IMAGE_NAME=${{ secrets.DOCKER_USERNAME }}/echoroom" >> $GITHUB_OUTPUT
+    
     - name: Build and push
       uses: docker/build-push-action@v5
       with:
         context: .
         push: ${{ github.ref == 'refs/heads/main' }}
         tags: |
-          ${{ secrets.DOCKER_USERNAME }}/echoroom:latest
-          ${{ secrets.DOCKER_USERNAME }}/echoroom:${{ github.sha }}
+          ${{ steps.image.outputs.IMAGE_NAME }}:latest
+          ${{ steps.image.outputs.IMAGE_NAME }}:${{ github.sha }}
 
   deploy:
     name: Deploy to VPS
@@ -140,17 +145,20 @@ jobs:
         
         echo "🚀 Starting VPS deployment..."
         
+        # Set image name
+        IMAGE_NAME="${{ secrets.DOCKER_USERNAME }}/echoroom"
+        
         # Pull latest Docker image
-        docker pull ${{ secrets.DOCKER_USERNAME }}/echoroom:${{ github.sha }}
+        docker pull ${IMAGE_NAME}:${{ github.sha }}
         
         # Create environment file
         cat > .env << ENVEOF
         DB_PASSWORD=${DB_PASSWORD}
-        DOCKER_IMAGE=${{ secrets.DOCKER_USERNAME }}/echoroom:${{ github.sha }}
+        DOCKER_IMAGE=${IMAGE_NAME}:${{ github.sha }}
         ENVEOF
         
         # Update docker-compose to use specific image
-        sed -i 's|image: .*|image: ${{ secrets.DOCKER_USERNAME }}/echoroom:${{ github.sha }}|' docker-compose.prod.yml
+        sed -i "s|image: .*|image: ${IMAGE_NAME}:${{ github.sha }}|" docker-compose.prod.yml
         
         # Stop existing services
         docker-compose -f docker-compose.prod.yml down || true
