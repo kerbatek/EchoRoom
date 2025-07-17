@@ -13,7 +13,9 @@ import (
 
 func setupTestDB(t *testing.T) *sql.DB {
 	// Load .env file for test configuration
-	_ = godotenv.Load()
+	if err := godotenv.Load(); err != nil {
+		// Silent fail - not required for tests
+	}
 	
 	// Try TEST_DATABASE_URL first
 	testConnStr := os.Getenv("TEST_DATABASE_URL")

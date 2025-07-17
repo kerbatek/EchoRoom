@@ -9,7 +9,9 @@ import (
 
 func main() {
 	// Load .env file (optional - will use system env vars if not found)
-	_ = godotenv.Load()
+	if err := godotenv.Load(); err != nil {
+		log.Println("No .env file found, using system environment variables")
+	}
 	
 	// Initialize database
 	db, err := initDatabase()
