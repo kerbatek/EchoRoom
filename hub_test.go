@@ -79,13 +79,20 @@ func TestHubClientRegistration(t *testing.T) {
 	time.Sleep(50 * time.Millisecond)
 
 	// Check if client was registered to general channel
+	hub.channelsMu.RLock()
 	generalChannel, exists := hub.channels["general"]
+	hub.channelsMu.RUnlock()
+	
 	if !exists {
 		t.Error("General channel should exist after client registration")
 		return
 	}
 
-	if _, clientExists := generalChannel.clients[client]; !clientExists {
+	generalChannel.clientsMu.RLock()
+	_, clientExists := generalChannel.clients[client]
+	generalChannel.clientsMu.RUnlock()
+	
+	if !clientExists {
 		t.Error("Client should be registered in general channel")
 	}
 
@@ -97,7 +104,11 @@ func TestHubClientRegistration(t *testing.T) {
 	time.Sleep(50 * time.Millisecond)
 
 	// Channel should still exist but client should be gone
-	if _, clientExists := generalChannel.clients[client]; clientExists {
+	generalChannel.clientsMu.RLock()
+	_, clientExists = generalChannel.clients[client]
+	generalChannel.clientsMu.RUnlock()
+	
+	if clientExists {
 		t.Error("Client should be unregistered from general channel")
 	}
 }
@@ -203,7 +214,9 @@ func TestSendActiveChannels(t *testing.T) {
 	}
 
 	// Create an ephemeral channel in memory
+	hub.channelsMu.Lock()
 	hub.channels["test-ephemeral"] = newChannel("test-ephemeral", Ephemeral)
+	hub.channelsMu.Unlock()
 
 	// Create a mock client
 	client := &Client{
@@ -277,7 +290,11 @@ func TestHubChannelCleanup(t *testing.T) {
 	time.Sleep(50 * time.Millisecond)
 
 	// Verify channel exists
-	if _, exists := hub.channels["test-ephemeral"]; !exists {
+	hub.channelsMu.RLock()
+	_, exists := hub.channels["test-ephemeral"]
+	hub.channelsMu.RUnlock()
+	
+	if !exists {
 		t.Error("Ephemeral channel should exist after client registration")
 		return
 	}
@@ -287,7 +304,11 @@ func TestHubChannelCleanup(t *testing.T) {
 	time.Sleep(50 * time.Millisecond)
 
 	// Ephemeral channel should be removed (except general)
-	if _, exists := hub.channels["test-ephemeral"]; exists {
+	hub.channelsMu.RLock()
+	_, exists = hub.channels["test-ephemeral"]
+	hub.channelsMu.RUnlock()
+	
+	if exists {
 		t.Error("Ephemeral channel should be removed after last client disconnects")
 	}
 }
@@ -322,7 +343,11 @@ func TestHubPersistentChannelMemoryCleanup(t *testing.T) {
 	time.Sleep(50 * time.Millisecond)
 
 	// Verify channel exists in memory
-	if _, exists := hub.channels["test-persistent"]; !exists {
+	hub.channelsMu.RLock()
+	_, exists := hub.channels["test-persistent"]
+	hub.channelsMu.RUnlock()
+	
+	if !exists {
 		t.Error("Persistent channel should exist in memory after client registration")
 		return
 	}
@@ -332,7 +357,11 @@ func TestHubPersistentChannelMemoryCleanup(t *testing.T) {
 	time.Sleep(50 * time.Millisecond)
 
 	// Persistent channel should be removed from memory but preserved in database
-	if _, exists := hub.channels["test-persistent"]; exists {
+	hub.channelsMu.RLock()
+	_, exists = hub.channels["test-persistent"]
+	hub.channelsMu.RUnlock()
+	
+	if exists {
 		t.Error("Persistent channel should be removed from memory after last client disconnects")
 	}
 

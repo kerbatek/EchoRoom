@@ -294,7 +294,11 @@ func TestEphemeralChannelCleanup(t *testing.T) {
 	time.Sleep(100 * time.Millisecond)
 
 	// Verify channel exists
-	if _, exists := hub.channels["ephemeral-test"]; !exists {
+	hub.channelsMu.RLock()
+	_, exists := hub.channels["ephemeral-test"]
+	hub.channelsMu.RUnlock()
+	
+	if !exists {
 		t.Error("Ephemeral channel should exist after creation")
 	}
 
@@ -303,7 +307,11 @@ func TestEphemeralChannelCleanup(t *testing.T) {
 	time.Sleep(200 * time.Millisecond)
 
 	// Verify ephemeral channel was cleaned up
-	if _, exists := hub.channels["ephemeral-test"]; exists {
+	hub.channelsMu.RLock()
+	_, exists = hub.channels["ephemeral-test"]
+	hub.channelsMu.RUnlock()
+	
+	if exists {
 		t.Error("Ephemeral channel should be cleaned up after last client disconnects")
 	}
 
@@ -364,13 +372,20 @@ func TestConcurrentClients(t *testing.T) {
 	}
 
 	// All clients should be in general channel
+	hub.channelsMu.RLock()
 	generalChannel, exists := hub.channels["general"]
+	hub.channelsMu.RUnlock()
+	
 	if !exists {
 		t.Fatal("General channel should exist")
 	}
 
-	if len(generalChannel.clients) != numClients {
-		t.Errorf("Expected %d clients in general channel, got %d", numClients, len(generalChannel.clients))
+	generalChannel.clientsMu.RLock()
+	clientCount := len(generalChannel.clients)
+	generalChannel.clientsMu.RUnlock()
+	
+	if clientCount != numClients {
+		t.Errorf("Expected %d clients in general channel, got %d", numClients, clientCount)
 	}
 
 	// Test broadcasting to all clients
