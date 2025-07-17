@@ -39,12 +39,12 @@ jobs:
     
     - name: Run tests
       env:
-        DB_HOST: localhost
-        DB_PORT: 5432
-        DB_USER: postgres
-        DB_PASSWORD: postgres
-        DB_NAME: chat_app_test
-        DB_SSLMODE: disable
+        TEST_DB_HOST: localhost
+        TEST_DB_PORT: 5432
+        TEST_DB_USER: postgres
+        TEST_DB_PASSWORD: postgres
+        TEST_DB_NAME: chat_app_test
+        TEST_DB_SSLMODE: disable
       run: go test -v -race -coverprofile=coverage.out ./...
     
     - name: Upload coverage

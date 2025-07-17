@@ -141,7 +141,12 @@ func TestChannelBroadcastWithBlockedClient(t *testing.T) {
 
 	// Start channel
 	shutdown := make(chan bool)
-	defer func() { shutdown <- true }() // Ensure cleanup
+	defer func() {
+		select {
+		case shutdown <- true:
+		default:
+		}
+	}() // Ensure cleanup
 	go channel.run(shutdown)
 
 	// Give channel time to start
@@ -167,6 +172,12 @@ func TestChannelBroadcastWithBlockedClient(t *testing.T) {
 
 	// Give additional time for client cleanup
 	time.Sleep(50 * time.Millisecond)
+
+	// Stop the channel to ensure no more concurrent modifications
+	shutdown <- true
+
+	// Give time for shutdown to complete
+	time.Sleep(10 * time.Millisecond)
 
 	// Client should be removed from channel due to blocked send
 	if len(channel.clients) != 0 {
