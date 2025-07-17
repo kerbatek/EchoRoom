@@ -180,7 +180,7 @@ docker exec -it postgres psql -U postgres chat_app
 
 ```bash
 # Pull latest image
-docker pull kerbatek/echoroom:latest
+docker pull your-dockerhub-username/echoroom:latest
 
 # Restart services
 cd /opt/echoroom/current

@@ -109,8 +109,8 @@ jobs:
         context: .
         push: ${{ github.ref == 'refs/heads/main' }}
         tags: |
-          ${{ github.repository }}:latest
-          ${{ github.repository }}:${{ github.sha }}
+          ${{ secrets.DOCKER_USERNAME }}/echoroom:latest
+          ${{ secrets.DOCKER_USERNAME }}/echoroom:${{ github.sha }}
 
   deploy:
     name: Deploy to VPS
@@ -141,16 +141,16 @@ jobs:
         echo "🚀 Starting VPS deployment..."
         
         # Pull latest Docker image
-        docker pull ${{ github.repository }}:${{ github.sha }}
+        docker pull ${{ secrets.DOCKER_USERNAME }}/echoroom:${{ github.sha }}
         
         # Create environment file
         cat > .env << ENVEOF
         DB_PASSWORD=${DB_PASSWORD}
-        DOCKER_IMAGE=${{ github.repository }}:${{ github.sha }}
+        DOCKER_IMAGE=${{ secrets.DOCKER_USERNAME }}/echoroom:${{ github.sha }}
         ENVEOF
         
         # Update docker-compose to use specific image
-        sed -i 's|image: .*|image: ${{ github.repository }}:${{ github.sha }}|' docker-compose.prod.yml
+        sed -i 's|image: .*|image: ${{ secrets.DOCKER_USERNAME }}/echoroom:${{ github.sha }}|' docker-compose.prod.yml
         
         # Stop existing services
         docker-compose -f docker-compose.prod.yml down || true

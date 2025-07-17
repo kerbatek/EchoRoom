@@ -130,7 +130,7 @@ if [ -f .env ]; then
 fi
 
 # Pull latest image
-docker pull kerbatek/echoroom:latest
+docker pull ${DOCKER_USERNAME:-kerbatek}/echoroom:latest
 
 # Stop existing services
 if [ -f docker-compose.prod.yml ]; then

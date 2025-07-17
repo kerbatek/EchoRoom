@@ -116,7 +116,7 @@ ssh root@your-vps-ip
 
 1. Go to [Docker Hub](https://hub.docker.com/)
 2. Create account or sign in
-3. Create a repository named `echoroom`
+3. Create a repository named `echoroom` (lowercase)
 
 ### 3.2 Get Docker Hub Credentials
 
