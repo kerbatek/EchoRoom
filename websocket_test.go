@@ -228,4 +228,3 @@ func testWebSocketErrorHandling(t *testing.T, hub *Hub) {
 		t.Error("Should not upgrade invalid WebSocket request")
 	}
 }
-

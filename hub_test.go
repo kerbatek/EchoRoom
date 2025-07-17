@@ -18,7 +18,7 @@ func TestNewHub(t *testing.T) {
 			db:         nil,
 			shutdown:   make(chan bool),
 		}
-		
+
 		if hub.channels == nil {
 			t.Error("Hub channels map should be initialized")
 		}
@@ -129,10 +129,10 @@ func TestHubBroadcast(t *testing.T) {
 	// Register clients
 	go hub.run()
 	defer hub.stop() // Ensure cleanup
-	
+
 	hub.register <- client1
 	hub.register <- client2
-	
+
 	time.Sleep(50 * time.Millisecond)
 
 	// Drain all initial messages (active_channels and join messages)
@@ -161,7 +161,7 @@ testBroadcast:
 
 	// Test broadcast message
 	testMessage := []byte(`{"type":"message","content":"test broadcast"}`)
-	
+
 	go func() {
 		hub.broadcast <- testMessage
 	}()

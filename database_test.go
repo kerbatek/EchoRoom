@@ -13,10 +13,8 @@ import (
 
 func setupTestDB(t *testing.T) *sql.DB {
 	// Load .env file for test configuration
-	if err := godotenv.Load(); err != nil {
-		// Silent fail - not required for tests
-	}
-	
+	_ = godotenv.Load() // Silent fail - not required for tests
+
 	// Try TEST_DATABASE_URL first
 	testConnStr := os.Getenv("TEST_DATABASE_URL")
 	if testConnStr == "" {
@@ -27,7 +25,7 @@ func setupTestDB(t *testing.T) *sql.DB {
 		password := os.Getenv("TEST_DB_PASSWORD")
 		dbname := os.Getenv("TEST_DB_NAME")
 		sslmode := os.Getenv("TEST_DB_SSLMODE")
-		
+
 		// Use defaults if not set
 		if host == "" {
 			host = "localhost"
@@ -47,7 +45,7 @@ func setupTestDB(t *testing.T) *sql.DB {
 		if sslmode == "" {
 			sslmode = "disable"
 		}
-		
+
 		testConnStr = fmt.Sprintf("postgres://%s:%s@%s:%s/%s?sslmode=%s&connect_timeout=3",
 			user, password, host, port, dbname, sslmode)
 	}

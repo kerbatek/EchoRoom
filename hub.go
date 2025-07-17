@@ -128,10 +128,10 @@ func (h *Hub) run() {
 					// Send leave message for ephemeral channels only if there will be other clients remaining
 					if channel.channelType == Ephemeral && len(channel.clients) > 1 && client.username != "" {
 						leaveMsg := Message{
-							Username: "System",
-							Content:  fmt.Sprintf("%s left the channel", client.username),
-							Type:     "system_message",
-							Channel:  channelName,
+							Username:  "System",
+							Content:   fmt.Sprintf("%s left the channel", client.username),
+							Type:      "system_message",
+							Channel:   channelName,
 							Timestamp: time.Now().UTC(),
 						}
 						if leaveMsgBytes, err := json.Marshal(leaveMsg); err == nil {
@@ -204,7 +204,7 @@ func (h *Hub) stop() {
 		default:
 		}
 	}
-	
+
 	// Stop the hub
 	select {
 	case h.shutdown <- true:

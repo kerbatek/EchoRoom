@@ -5,7 +5,7 @@ import (
 	"fmt"
 	"log"
 	"time"
-	
+
 	"github.com/gorilla/websocket"
 )
 
@@ -39,17 +39,17 @@ func (c *Client) readPump() {
 				log.Printf("Error unmarshaling user_connected message: %v", err)
 				continue
 			}
-			
+
 			// Set username and send join message immediately
 			if message.Username != "" && c.username != message.Username {
 				c.username = message.Username
 				c.hasJoined = true
-				
+
 				channelName := c.channel
 				if channelName == "" {
 					channelName = "general"
 				}
-				
+
 				// Send join message for ephemeral channels if there are other clients
 				if channel, ok := c.hub.channels[channelName]; ok && channel.channelType == Ephemeral {
 					if len(channel.clients) > 1 {
@@ -127,7 +127,7 @@ func (c *Client) readPump() {
 		if message.Type == "message" {
 			// Set timestamp for all messages
 			message.Timestamp = time.Now().UTC()
-			
+
 			// Only save to database if channel is persistent
 			if channel, ok := c.hub.channels[channelName]; ok && channel.channelType == Persistent {
 				if err := c.hub.saveMessage(message); err != nil {
@@ -232,10 +232,10 @@ func (c *Client) switchChannelWithType(newChannelName string, channelType Channe
 
 		if msgBytes, err := json.Marshal(channelCreatedMsg); err == nil {
 			select {
-		case c.hub.broadcast <- msgBytes:
-		default:
-			// Hub broadcast channel is full, skip
-		}
+			case c.hub.broadcast <- msgBytes:
+			default:
+				// Hub broadcast channel is full, skip
+			}
 		}
 	}
 
@@ -302,7 +302,7 @@ func (c *Client) switchChannel(newChannelName string) {
 				channel.broadcast <- leaveMsgBytes
 			}
 		}
-		
+
 		delete(channel.clients, c)
 		if len(channel.clients) == 0 && oldChannel != "general" {
 			// Only delete ephemeral channels when empty
@@ -379,10 +379,10 @@ func (c *Client) switchChannel(newChannelName string) {
 
 		if msgBytes, err := json.Marshal(channelCreatedMsg); err == nil {
 			select {
-		case c.hub.broadcast <- msgBytes:
-		default:
-			// Hub broadcast channel is full, skip
-		}
+			case c.hub.broadcast <- msgBytes:
+			default:
+				// Hub broadcast channel is full, skip
+			}
 		}
 	}
 
